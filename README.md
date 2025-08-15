@@ -105,11 +105,11 @@ lib/
 
 ### Supported Platforms
 - ✅ Android
-- ✅ iOS
-- ✅ macOS
-- ✅ Web
-- ✅ Windows
-- ✅ Linux
+-  iOS
+-  macOS
+-  Web
+-  Windows
+-  Linux
 
 ## Dependencies
 
