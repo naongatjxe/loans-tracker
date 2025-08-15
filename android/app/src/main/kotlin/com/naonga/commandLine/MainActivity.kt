@@ -1,4 +1,4 @@
-package com.example.loan_tracker
+package com.naonga.commandLine
 
 import android.content.Intent
 import android.net.Uri
