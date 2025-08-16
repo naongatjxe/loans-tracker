@@ -105,11 +105,11 @@ lib/
 
 ### Supported Platforms
 - ✅ Android
-- ✅ iOS
-- ✅ macOS
-- ✅ Web
-- ✅ Windows
-- ✅ Linux
+-  iOS
+-  macOS
+-  Web
+-  Windows
+-  Linux
 
 ## Dependencies
 
@@ -159,4 +159,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-Made with ❤️ using Flutter
