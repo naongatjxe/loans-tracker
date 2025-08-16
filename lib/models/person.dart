@@ -1,3 +1,5 @@
+import '../utils/interest_calculator.dart';
+
 class Person {
   final String id;
   final String name;
@@ -97,15 +99,13 @@ class Person {
     return amount + interest;
   }
 
-  /// Interest for the agreed term (loanDate -> dueDate), not just elapsed time.
+  /// Interest for the loan (simple fixed percentage, not time-dependent).
   double interestForTerm() {
-    final days = dueDate.difference(loanDate).inDays;
-    final double weeks = days / 7.0;
-    return amount * (interestRate / 100) * weeks;
+    return InterestCalculator.calculateInterestCharge(amount, interestRate);
   }
 
-  /// Total amount for the agreed term (principal + interest for term).
+  /// Total amount for the loan (principal + fixed interest).
   double totalForTerm() {
-    return amount + interestForTerm();
+    return InterestCalculator.calculateTotalDue(amount, interestRate);
   }
 }
