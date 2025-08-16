@@ -1,4 +1,45 @@
 class InterestCalculator {
+  // Calculate total amount due with fixed interest rate (not time-dependent)
+  static double calculateTotalDue(double amountLoaned, double interestRate) {
+    // Convert percentage rate (e.g. 10) into decimal (0.10)
+    double interest = interestRate / 100;
+
+    // Interest charge
+    double interestCharge = amountLoaned * interest;
+
+    // Amount due
+    double totalDue = amountLoaned + interestCharge;
+
+    return totalDue;
+  }
+
+  // Calculate just the interest charge (not time-dependent)
+  static double calculateInterestCharge(
+    double amountLoaned,
+    double interestRate,
+  ) {
+    // Convert percentage rate (e.g. 10) into decimal (0.10)
+    double interest = interestRate / 100;
+
+    // Interest charge
+    return amountLoaned * interest;
+  }
+
+  // Return both interest charge and total due as a Map
+  static Map<String, double> calculateInterestBreakdown(
+    double amountLoaned,
+    double interestRate,
+  ) {
+    double interestCharge = calculateInterestCharge(amountLoaned, interestRate);
+    double totalDue = amountLoaned + interestCharge;
+
+    return {
+      'interestCharge': interestCharge,
+      'totalDue': totalDue,
+      'principal': amountLoaned,
+    };
+  }
+
   // Calculate simple interest
   static double calculateSimpleInterest(
     double principal,
