@@ -4,23 +4,20 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import '../models/contract.dart';
 // Removed unused import of InterestCalculator; total due is now calculated
-// using the same weekly interest formula as in Person.
+// using the same fixed per-term interest formula used in the Person model.
 
 class PdfGenerator {
   static Future<Uint8List> generateContract(Contract contract) async {
     final pdf = pw.Document();
     final dateFormat = DateFormat('dd MMMM yyyy');
-    final currencyFormat = NumberFormat('#,##0.00');
+    final currencyFormat = NumberFormat.currency(symbol: 'K ');
 
-    // Calculate the total amount due using the same weekly interest formula
-    // used within the app. This ensures the contract PDF reflects the
-    // principal plus the agreed‑term interest (weekly) rather than an
-    // annualised simple interest. See Person.interestForTerm() for the
-    // corresponding logic in the model layer.
-    final termDays = contract.person.dueDate.difference(contract.person.loanDate).inDays;
-    final double termWeeks = termDays / 7.0;
-    final double termTotal = contract.person.amount +
-        contract.person.amount * (contract.person.interestRate / 100) * termWeeks;
+    // Calculate the total amount due using the fixed per-term interest
+    // formula used in the app. This ensures the contract PDF reflects the
+    // principal plus the agreed-term interest (amount * interestRate%). See
+    // Person.totalForTerm() for the corresponding logic in the model layer.
+    // Use the Person model's method so calculation logic is centralised
+    final double termTotal = contract.person.calculateAmountDue(contract.person.dueDate);
 
     // Define styles
     final headerStyle = pw.TextStyle(
@@ -173,7 +170,7 @@ class PdfGenerator {
                     ),
                     _buildDetailRow(
                       'Interest Rate:',
-                      '${contract.person.interestRate}% per annum',
+                      '${contract.person.interestRate}%',
                     ),
                     _buildDetailRow(
                       'Loan Date:',

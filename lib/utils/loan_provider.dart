@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/person.dart';
 import '../models/contract.dart';
+import 'notification_service.dart';
 
 class LoanProvider with ChangeNotifier {
   List<Person> _people = [];
@@ -31,6 +32,11 @@ class LoanProvider with ChangeNotifier {
         .toList();
 
     notifyListeners();
+
+    // Schedule notifications for loaded loans (if enabled)
+    try {
+      await rescheduleAllNotifications();
+    } catch (_) {}
   }
 
   Future<void> _saveData() async {
@@ -54,6 +60,13 @@ class LoanProvider with ChangeNotifier {
     _people.add(person);
     await _saveData();
     notifyListeners();
+
+    // Schedule notifications for this loan
+    try {
+      await NotificationService().scheduleLoanNotifications(person);
+    } catch (_) {
+      // ignore errors
+    }
   }
 
   // Update a person
@@ -63,11 +76,23 @@ class LoanProvider with ChangeNotifier {
       _people[index] = person;
       await _saveData();
       notifyListeners();
+
+      // Re-schedule notifications for this loan (update)
+      try {
+        await NotificationService().scheduleLoanNotifications(person);
+      } catch (_) {
+        // ignore errors
+      }
     }
   }
 
   // Delete a person
   Future<void> deletePerson(String id) async {
+    // Cancel notifications related to this loan
+    try {
+      await NotificationService().cancelLoanNotifications(id);
+    } catch (_) {}
+
     _people.removeWhere((person) => person.id == id);
     await _saveData();
     notifyListeners();
@@ -97,6 +122,30 @@ class LoanProvider with ChangeNotifier {
       _people[index] = person.copyWith(isPaid: true);
       await _saveData();
       notifyListeners();
+
+      // Cancel scheduled notifications when loan is paid
+      try {
+        await NotificationService().cancelLoanNotifications(personId);
+      } catch (_) {}
+    }
+  }
+
+  /// Cancel notifications for all loans
+  Future<void> cancelAllNotifications() async {
+    for (final p in _people) {
+      try {
+        await NotificationService().cancelLoanNotifications(p.id);
+      } catch (_) {}
+    }
+  }
+
+  /// Reschedule notifications for all loans (if notifications are enabled)
+  Future<void> rescheduleAllNotifications() async {
+    if (!NotificationService().enabled) return;
+    for (final p in _people) {
+      try {
+        await NotificationService().scheduleLoanNotifications(p);
+      } catch (_) {}
     }
   }
 
@@ -109,6 +158,11 @@ class LoanProvider with ChangeNotifier {
       _people[index] = updatedPerson;
       await _saveData();
       notifyListeners();
+
+      // Re-schedule notifications now that the loan is unpaid
+      try {
+        await NotificationService().scheduleLoanNotifications(updatedPerson);
+      } catch (_) {}
     }
   }
 }

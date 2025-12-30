@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../theme/theme_controller.dart';
 import '../utils/loan_provider.dart';
+import '../utils/notification_service.dart';
+import '../utils/storage_helper.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,9 +18,27 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  bool _notificationsEnabled = true;
+
+  int _notificationsHour = 9;
+  int _notificationsMinute = 0;
+  bool _oneDayBefore = true;
+
   @override
   void initState() {
     super.initState();
+    // Read current notification preference
+    try {
+      _notificationsEnabled = NotificationService().enabled;
+      _notificationsHour = NotificationService().hour;
+      _notificationsMinute = NotificationService().minute;
+      _oneDayBefore = NotificationService().oneDayBefore;
+    } catch (_) {
+      _notificationsEnabled = true;
+      _notificationsHour = 9;
+      _notificationsMinute = 0;
+      _oneDayBefore = true;
+    }
   }
 
   @override
@@ -36,6 +56,126 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          const SizedBox(height: 8),
+
+          // Notifications toggle (top)
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SwitchListTile(
+                    value: _notificationsEnabled,
+                    onChanged: (val) async {
+                      final provider = Provider.of<LoanProvider>(context, listen: false);
+                      setState(() => _notificationsEnabled = val);
+                      await NotificationService().setEnabled(val);
+                      if (val) {
+                        await provider.rescheduleAllNotifications();
+                      } else {
+                        await provider.cancelAllNotifications();
+                      }
+                    },
+                    title: const Text('Notifications'),
+                    subtitle: const Text('Reminders for upcoming and due loans'),
+                    secondary: const Icon(Icons.notifications_active_outlined, color: Color(0xFF64B5F6)),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Tooltip(
+                          message: 'Tap to send a test notification. Ensure system notifications are enabled.',
+                          child: ElevatedButton.icon(
+                            onPressed: _notificationsEnabled
+                                ? () async {
+                                    final messenger = ScaffoldMessenger.of(context);
+                                    try {
+                                      await NotificationService().showTestNotification();
+                                      messenger.showSnackBar(const SnackBar(content: Text('Test notification sent — check your device notifications')));
+                                    } catch (e) {
+                                      messenger.showSnackBar(SnackBar(content: Text('Failed to send test notification: $e'), backgroundColor: Colors.red));
+                                    }
+                                  }
+                                : null,
+                            icon: const Icon(Icons.send),
+                            label: const Text('Send test notification'),
+                            style: ElevatedButton.styleFrom(elevation: 0),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Notification time picker and one-day-before toggle
+                  ListTile(
+                    leading: const Icon(Icons.schedule, color: Color(0xFF64B5F6)),
+                    title: const Text('Notification time'),
+                    subtitle: Text('${_notificationsHour.toString().padLeft(2, '0')}:${_notificationsMinute.toString().padLeft(2, '0')}'),
+                    onTap: () async {
+                      final provider = Provider.of<LoanProvider>(context, listen: false);
+                      final initial = TimeOfDay(hour: _notificationsHour, minute: _notificationsMinute);
+                      final picked = await showTimePicker(context: context, initialTime: initial);
+                      if (picked != null) {
+                        setState(() {
+                          _notificationsHour = picked.hour;
+                          _notificationsMinute = picked.minute;
+                        });
+                        await NotificationService().setNotificationTime(picked.hour, picked.minute);
+                        await provider.rescheduleAllNotifications();
+                      }
+                    },
+                  ),
+                  SwitchListTile(
+                    value: _oneDayBefore,
+                    onChanged: (val) async {
+                      final provider = Provider.of<LoanProvider>(context, listen: false);
+                      setState(() => _oneDayBefore = val);
+                      await NotificationService().setOneDayBefore(val);
+                      if (val) {
+                        await provider.rescheduleAllNotifications();
+                      } else {
+                        // cancel all notifications for loans (includes the one-day-before entries)
+                        await provider.cancelAllNotifications();
+                      }
+                    },
+                    title: const Text('Notify one day before'),
+                    subtitle: const Text('Send a reminder the day before the loan is due'),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'The app will request notification permissions on first use. If notifications do not appear, check your system settings to grant notification permission to this app.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    leading: const Icon(Icons.folder_open, color: Color(0xFF64B5F6)),
+                    title: const Text('Export folder (choose)'),
+                    subtitle: const Text('Pick a folder to be used as the default export destination.'),
+                    trailing: ElevatedButton(
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final chosen = await StorageHelper.promptForDirectory();
+                        if (chosen != null && chosen.isNotEmpty) {
+                          await StorageHelper.setPreferredExportDirectory(chosen);
+                          if (mounted) messenger.showSnackBar(SnackBar(content: Text('Export folder saved: $chosen')));
+                        } else {
+                          if (mounted) messenger.showSnackBar(const SnackBar(content: Text('No folder selected')));
+                        }
+                      },
+                      child: const Text('Pick'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           const SizedBox(height: 8),
 
           // Appearance Card

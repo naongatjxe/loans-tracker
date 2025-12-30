@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/person.dart';
 import '../utils/loan_provider.dart';
 import '../utils/csv_exporter.dart';
+import '../utils/storage_helper.dart';
 import 'loan_details_page.dart';
 import 'loan_edit_page_new.dart';
 import '../theme/theme_controller.dart';
@@ -82,9 +83,9 @@ class HomePageState extends State<HomePage>
             backgroundColor: Theme.of(context).colorScheme.surface,
             actions: [
               IconButton(
-                onPressed: () => _exportToCsv(filtered),
+                onPressed: () => _showExportOptions(filtered),
                 icon: const Icon(Icons.file_download_outlined),
-                tooltip: 'Export to CSV',
+                tooltip: 'Export',
               ),
             ],
           ),
@@ -329,20 +330,41 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  void _exportToCsv(List<Person> loans) async {
+  Future<void> _exportToCsv(List<Person> loans, {String? outputDir}) async {
     try {
-      await CsvExporter.exportLoansToCsv(loans);
+      String? dirToUse = outputDir;
+
+      // If no explicit output directory provided, first check if a preferred
+      // export directory has been saved in settings.
+      if (dirToUse == null) {
+        final pref = await StorageHelper.getPreferredExportDirectory();
+        if (pref != null && pref.isNotEmpty) {
+          dirToUse = pref;
+        } else {
+          // If no preferred directory, ensure we have permission; if not,
+          // prompt the user to pick a folder.
+          final hasPerm = await StorageHelper.ensureStoragePermission(context);
+          if (!hasPerm) {
+            final chosen = await StorageHelper.promptForDirectory();
+            if (chosen != null && chosen.isNotEmpty) dirToUse = chosen;
+          }
+        }
+      }
+
+      final messenger = ScaffoldMessenger.of(context);
+      final path = await CsvExporter.exportLoansToCsv(loans, outputDirPath: dirToUse);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('CSV export completed!'),
-            duration: Duration(seconds: 2),
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('CSV saved to $path'),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
+      final messenger = ScaffoldMessenger.of(context);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Export failed: $e'),
             backgroundColor: Colors.red,
@@ -352,4 +374,113 @@ class HomePageState extends State<HomePage>
       }
     }
   }
+
+  void _showExportOptions(List<Person> loans) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.file_download_outlined),
+              title: const Text('Export Loans CSV'),
+              onTap: () async {
+                Navigator.pop(context);
+                _exportToCsv(loans);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_open),
+              title: const Text('Export Loans CSV (Choose folder)'),
+              subtitle: const Text('Pick a directory path to save the CSV'),
+              onTap: () async {
+                Navigator.pop(context);
+                final chosen = await _promptForDirectoryPath();
+                if (chosen != null && chosen.isNotEmpty) {
+                  await _exportToCsv(loans, outputDir: chosen);
+                }
+              },
+            ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+
+  Future<String?> _promptForDirectoryPath() async {
+    String? input;
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Choose folder or enter path'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Pick a folder using the system picker or enter a folder path manually.'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(hintText: '/storage/emulated/0/Download'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final chosen = await StorageHelper.promptForDirectory();
+                      if (chosen != null && chosen.isNotEmpty) {
+                        controller.text = chosen;
+                      }
+                    },
+                    child: const Text('Pick'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                input = controller.text.trim();
+                if (input != null && input!.isNotEmpty) {
+                  // Ask whether to make this the preferred export directory
+                  final messenger = ScaffoldMessenger.of(context);
+                  final makeDefault = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Save as default?'),
+                      content: const Text('Make this folder the default export destination? You can change it later in Settings.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes')),
+                      ],
+                    ),
+                  );
+
+                  if (makeDefault == true) {
+                    await StorageHelper.setPreferredExportDirectory(input!);
+                    if (mounted) messenger.showSnackBar(SnackBar(content: Text('Export folder saved: $input')));
+                  }
+                }
+
+                Navigator.pop(context, input);
+              },
+              child: const Text('Save here'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
+

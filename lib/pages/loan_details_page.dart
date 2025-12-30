@@ -12,8 +12,9 @@ class LoanDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat('#,##0.00');
 
-    final interest = person.interestForTerm();
-    final total = person.totalForTerm();
+    // Amounts are shown using fixed per-term interest (principal + interestRate%)
+    final total = person.calculateAmountDue(person.dueDate);
+    final interest = total - person.amount;
 
     final daysLeft = person.dueDate.difference(DateTime.now()).inDays;
     final isOverdue = daysLeft < 0 && !person.isPaid;

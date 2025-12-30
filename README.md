@@ -63,42 +63,7 @@ flutter build apk --release
 **iOS:**
 ```bash
 flutter build ios --release
-```
-
-## Project Structure
-
-```
-lib/
-├── main.dart              # App entry point
-├── main_tabs.dart         # Main tab navigation
-├── models/                # Data models
-│   ├── person.dart
-│   └── contract.dart
-├── pages/                 # App screens
-│   ├── home_page.dart
-│   ├── dashboard_page.dart
-│   ├── loan_edit_page_new.dart
-│   ├── loan_details_page.dart
-│   ├── settings_page.dart
-│   └── contract_page.dart
-├── theme/                 # Theme configuration
-│   └── theme_controller.dart
-├── utils/                 # Utilities
-│   ├── loan_provider.dart
-│   ├── csv_exporter.dart
-│   ├── interest_calculator.dart
-│   └── notification_service.dart
-└── widgets/               # Reusable widgets
-    └── loan_card_compact.dart
-```
-
-## Configuration
-
-### Package Information
-- **Package Name**: `com.naonga.commandLine`
-- **App Name**: Loans Tracker
-- **Version**: 1.0.0+1
-
+``'
 ### Supported Platforms
 - ✅ Android
 -  iOS

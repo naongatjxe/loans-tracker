@@ -107,7 +107,7 @@ class LoanCardCompact extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'K${loan.totalForTerm().toStringAsFixed(0)}',
+                        'K${loan.calculateAmountDue(loan.dueDate).toStringAsFixed(0)}',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: themeController.accent,

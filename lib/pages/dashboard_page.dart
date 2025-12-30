@@ -67,17 +67,21 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildMainStatsSection(List<Person> people) {
     final currency = NumberFormat('#,##0.00');
-    double totalLoaned = 0, totalInterest = 0, totalOutstanding = 0;
+    double totalLoaned = 0, totalInterest = 0, totalOutstanding = 0, interestEarned = 0;
     int overdue = 0;
 
     for (final p in people) {
       totalLoaned += p.amount;
-      final termInterest = p.interestForTerm();
-      final termTotal = p.totalForTerm();
+      // Calculate the total amount at the loan's due date (principal + fixed per-term interest)
+      final termTotal = p.calculateAmountDue(p.dueDate);
+      final termInterest = termTotal - p.amount;
       if (!p.isPaid) {
         totalInterest += termInterest;
         totalOutstanding += termTotal;
         if (p.dueDate.isBefore(DateTime.now())) overdue++;
+      } else {
+        // Sum interest from loans that have been marked paid
+        interestEarned += termInterest;
       }
     }
 
@@ -126,6 +130,21 @@ class _DashboardPageState extends State<DashboardPage> {
                 Icons.warning_rounded,
                 overdue > 0 ? Colors.red : Colors.grey,
                 highlight: overdue > 0,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Interest earned on paid loans
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Interest Earned',
+                'K${currency.format(interestEarned)}',
+                Icons.monetization_on,
+                Colors.teal,
               ),
             ),
           ],

@@ -82,21 +82,17 @@ class Person {
   }
 
   double calculateTotalAmount() {
-    // Calculate the total amount to be paid including interest (weekly basis)
-    final daysElapsed = DateTime.now().difference(loanDate).inDays;
-    final double weeksElapsed = daysElapsed / 7.0;
-    final double interest =
-        amount * (interestRate / 100) * weeksElapsed; // Weekly interest
-    return amount + interest;
+    // Calculate the total amount to be paid including fixed per-term interest.
+    // Interest is applied as: interest = amount * (interestRate/100),
+    // then total = amount + interest (previous behaviour).
+    return totalForTerm();
   }
 
   double calculateAmountDue(DateTime currentDate) {
-    // Calculate the amount due based on the current date (weekly basis)
-    final daysElapsed = currentDate.difference(loanDate).inDays;
-    final double weeksElapsed = daysElapsed / 7.0;
-    final double interest =
-        amount * (interestRate / 100) * weeksElapsed; // Weekly interest
-    return amount + interest;
+    // Return the total amount due for the loan term (fixed per-term interest).
+    // The due date is accepted for API compatibility but not used because the
+    // interest is not time-pro-rated.
+    return totalForTerm();
   }
 
   /// Interest for the loan (simple fixed percentage, not time-dependent).

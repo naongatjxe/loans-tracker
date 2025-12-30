@@ -3,12 +3,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'utils/loan_provider.dart';
+import 'utils/notification_service.dart';
 import 'pages/contract_page.dart';
 import 'main_tabs.dart';
 import 'theme/theme_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize local notifications (skipped on web)
+  try {
+    await NotificationService().init();
+  } catch (e) {
+    // ignore: avoid_print
+    print('Notification init failed: $e');
+  }
 
   // Only set preferred orientations on mobile platforms
   if (!kIsWeb) {

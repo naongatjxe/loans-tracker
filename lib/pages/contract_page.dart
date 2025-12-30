@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,7 @@ import 'package:printing/printing.dart';
 import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/person.dart';
+import '../utils/storage_helper.dart';
 import '../models/contract.dart';
 import '../utils/loan_provider.dart';
 import '../utils/pdf_generator.dart';
@@ -89,25 +91,12 @@ class ContractPageState extends State<ContractPage> {
                 appBar: AppBar(
                   title: const Text('Contract Preview'),
                   elevation: 0,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.save),
-                      tooltip: 'Save PDF',
-                      onPressed: () => _savePdf(pdfBytes, contract),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.share),
-                      tooltip: 'Share PDF',
-                      onPressed: () {
-                        // Sharing is handled by the PdfPreview widget
-                      },
-                    ),
-                  ],
                 ),
                 body: PdfPreview(
                   build: (format) => pdfBytes,
                   allowPrinting: true,
-                  allowSharing: true,
+                  // Sharing removed from preview per request; explicit save options provided
+                  allowSharing: false,
                   canChangePageFormat: false,
                   canChangeOrientation: false,
                   canDebug: false,
@@ -190,9 +179,147 @@ class ContractPageState extends State<ContractPage> {
     }
   }
 
+  // Keep save helpers for future use; intentionally unused while the preview AppBar is hidden.
+  // ignore: unused_element
+  void _showSaveOptions(Uint8List pdfBytes, Contract contract) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.download),
+              title: const Text('Save to Downloads'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _saveToDownloads(pdfBytes, contract);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder),
+              title: const Text('Save to App files (internal)'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _savePdf(pdfBytes, contract);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveToDownloads(Uint8List pdfBytes, Contract contract) async {
+    try {
+      final safeName = contract.person.name.replaceAll(
+        RegExp(r"[^A-Za-z0-9_]"),
+        "_",
+      );
+      final fileName =
+          'contract_${safeName}_${DateFormat('yyyyMMdd').format(contract.creationDate)}.pdf';
+
+      // Ensure we have permission or a chosen folder
+      final hasPermission = await StorageHelper.ensureStoragePermission(context);
+
+      // Try path_provider's getDownloadsDirectory (desktop platforms)
+      Directory? downloadsDir;
+      try {
+        downloadsDir = await getDownloadsDirectory();
+      } catch (_) {
+        downloadsDir = null;
+      }
+
+      // Fallback: Android external downloads directory
+      if (downloadsDir == null) {
+        final extDirs = await getExternalStorageDirectories(
+          type: StorageDirectory.downloads,
+        );
+        if (extDirs != null && extDirs.isNotEmpty) {
+          downloadsDir = extDirs.first;
+        }
+      }
+
+      // If permission was not granted, let user pick a folder
+      if (!hasPermission) {
+        final chosen = await StorageHelper.promptForDirectory();
+        if (chosen != null && chosen.isNotEmpty) {
+          final file = File('$chosen/$fileName');
+          await file.writeAsBytes(pdfBytes);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Contract saved to ${file.path}')),
+            );
+          }
+          return;
+        }
+
+        // User didn't pick a folder; fall back to internal app files
+        await _savePdf(pdfBytes, contract);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Saved to App files instead.')),
+          );
+        }
+        return;
+      }
+
+      if (downloadsDir == null) {
+        // If we couldn't find a downloads directory, fall back to app support
+        await _savePdf(pdfBytes, contract);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Downloads not available; saved to App files instead.')),
+          );
+        }
+        return;
+      }
+
+      final file = File('${downloadsDir.path}/$fileName');
+      try {
+        await file.writeAsBytes(pdfBytes);
+      } catch (e) {
+        // If writing failed (permission or scoped storage), prompt for folder
+        final chosen = await StorageHelper.promptForDirectory();
+        if (chosen != null && chosen.isNotEmpty) {
+          final fallback = File('$chosen/$fileName');
+          await fallback.writeAsBytes(pdfBytes);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Contract saved to ${fallback.path}')),
+            );
+          }
+          return;
+        }
+
+        // Last resort
+        await _savePdf(pdfBytes, contract);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Saved to App files instead due to error: $e')),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Contract saved to ${file.path}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving to Downloads: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat('#,##0.00');
+    final currencyFormat = NumberFormat.currency(symbol: 'K ');
     // If no person supplied, show list of borrowers and offer contract-only form
     if (_person == null) {
       return Scaffold(
@@ -416,9 +543,9 @@ class ContractPageState extends State<ContractPage> {
                             const Divider(height: 24),
                             _buildInfoRow(
                               'Total Amount Due:',
-                              // Use the total for the agreed term (principal + weekly interest)
+                              // Use the amount due for the agreed term (principal + fixed per-term interest)
                               currencyFormat.format(
-                                _person!.totalForTerm(),
+                                _person!.calculateAmountDue(_person!.dueDate),
                               ),
                               valueStyle: const TextStyle(
                                 fontWeight: FontWeight.bold,
@@ -465,6 +592,24 @@ class ContractPageState extends State<ContractPage> {
                         }
                         return null;
                       },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Editable Terms and Conditions for the PDF
+                    TextFormField(
+                      controller: _termsController,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        labelText: 'Terms and Conditions (editable for PDF)',
+                        alignLabelWithHint: true,
+                        hintText:
+                            'Edit the contract terms that will appear in the generated PDF',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Color.fromRGBO(66, 66, 66, 0.06),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -538,6 +683,15 @@ class ContractPageState extends State<ContractPage> {
                 controller: _companyNameController,
                 decoration: const InputDecoration(
                   labelText: 'Company / Lender Name',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _termsController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Terms and Conditions (optional) ',
+                  hintText: 'Custom terms to include in the generated PDF',
                 ),
               ),
             ],
