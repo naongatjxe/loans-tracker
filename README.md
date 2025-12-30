@@ -63,7 +63,7 @@ flutter build apk --release
 **iOS:**
 ```bash
 flutter build ios --release
-``'
+```
 ### Supported Platforms
 - ✅ Android
 -  iOS
