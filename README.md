@@ -28,10 +28,6 @@ A modern Flutter application for managing personal loans with a clean, intuitive
 - **Clean Architecture**: Well-structured codebase
 - **No Unnecessary Effects**: Focus on functionality over visual clutter
 
-## Screenshots
-
-*Add screenshots of your app here*
-
 ## Installation
 
 ### Prerequisites
